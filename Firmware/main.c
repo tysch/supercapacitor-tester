@@ -570,7 +570,7 @@ void init_10ms_timer(void)
     // Enable the TIM4_IRQn Interrupt 
     NVIC_InitStructure.NVIC_IRQChannel = TIM3_IRQn;
     NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 2;
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;
     NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&NVIC_InitStructure);
 }
@@ -588,22 +588,10 @@ void geiger_counter_input_init()
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);
 
     // Set pin as input
-    GPIO_InitStruct.GPIO_Pin = GPIO_Pin_1 | GPIO_Pin_0;
+    GPIO_InitStruct.GPIO_Pin = GPIO_Pin_0;
     GPIO_InitStruct.GPIO_Mode = GPIO_Mode_IPU;
     GPIO_InitStruct.GPIO_Speed = GPIO_Speed_10MHz;
     GPIO_Init(GPIOB, &GPIO_InitStruct);
- 
-    // Add IRQ vector to NVIC
-    // PB1 is connected to EXTI_Line1, which has EXTI1_IRQn vector
-    NVIC_InitStruct.NVIC_IRQChannel = EXTI1_IRQn;
-    // Set maximum possible priority 
-    NVIC_InitStruct.NVIC_IRQChannelPreemptionPriority = 1;
-    // Set sub priority
-    NVIC_InitStruct.NVIC_IRQChannelSubPriority = 0;
-    // Enable interrupt
-    NVIC_InitStruct.NVIC_IRQChannelCmd = ENABLE;
-    // Add to NVIC
-    NVIC_Init(&NVIC_InitStruct);
 
     // Add IRQ vector to NVIC
     // PB1 is connected to EXTI_Line1, which has EXTI1_IRQn vector
@@ -619,18 +607,6 @@ void geiger_counter_input_init()
 
     // Tell system that you will use PB1 for EXTI_Line1
     GPIO_EXTILineConfig(GPIO_PortSourceGPIOB, GPIO_PinSource0);
-    GPIO_EXTILineConfig(GPIO_PortSourceGPIOB, GPIO_PinSource1);
-
-    // PD1 is connected to EXTI_Line1
-    EXTI_InitStruct.EXTI_Line = EXTI_Line1;
-    // Enable interrupt
-    EXTI_InitStruct.EXTI_LineCmd = ENABLE;
-    // Interrupt mode
-    EXTI_InitStruct.EXTI_Mode = EXTI_Mode_Interrupt;
-    // Triggers on rising and falling edge
-    EXTI_InitStruct.EXTI_Trigger = EXTI_Trigger_Rising;
-    // Add to EXTI
-    EXTI_Init(&EXTI_InitStruct);
 
         // PD0 is connected to EXTI_Line0
     EXTI_InitStruct.EXTI_Line = EXTI_Line0;
@@ -639,11 +615,9 @@ void geiger_counter_input_init()
     // Interrupt mode
     EXTI_InitStruct.EXTI_Mode = EXTI_Mode_Interrupt;
     // Triggers on rising and falling edge
-    EXTI_InitStruct.EXTI_Trigger = EXTI_Trigger_Falling;
+    EXTI_InitStruct.EXTI_Trigger = EXTI_Trigger_Rising_Falling;
     // Add to EXTI
     EXTI_Init(&EXTI_InitStruct);
-
-
 }
 
 
@@ -658,188 +632,46 @@ static volatile int32_t rise_time_10ms;
 
 void compute_and_display_values(void)
 {
-
-    /*
-    // Compute charge and discharge time
-    static int32_t prev_rise_time_us = 0;
-    static uint32_t prev_rise_time_s = 0;
-
-    static int32_t prev_fall_time_us = 0;
-    static uint32_t prev_fall_time_s = 0;
-
-    int32_t rel_rise_time_us = rise_time_us - prev_rise_time_us;
-    uint32_t rel_rise_time_s = rise_time_s - prev_rise_time_s;
-
-    int32_t rel_fall_time_us = fall_time_us - prev_fall_time_us;
-    uint32_t rel_fall_time_s = fall_time_s - prev_fall_time_s;
-
-    if(rel_rise_time_us < 0)
-    {
-        rel_rise_time_us += 1000000;
-        rel_rise_time_s--;
-    }
-
-    if(rel_fall_time_us < 0)
-    {
-        rel_fall_time_us += 1000000;
-        rel_fall_time_s--;
-    }
-
-    prev_rise_time_us = rise_time_us;
-    prev_rise_time_s = rise_time_s;
-
-    prev_fall_time_us = fall_time_us;
-    prev_fall_time_s = fall_time_s;
-
-
-    LCD5110_clear();
-
-    update_display(0, 0, rel_rise_time_s, 0, rel_rise_time_us, 0);*/
-
-/*
-
-                    while(rise_time_us >= 1000000)
-                {
-                    rise_time_us -= 1000000;
-                    rise_time_s++;
-                }
-
-                while(rise_time_us < 0)
-                {
-                    rise_time_us += 1000000;
-                    rise_time_s--;
-                }
-
-                                while(fall_time_us >= 1000000)
-                {
-                    fall_time_us -= 1000000;
-                    fall_time_s++;
-                }
-*/
-
-
-/*
-                while(rise_time_us >= 10000)
-                {
-                    rise_time_us -= 10000;
-                    rise_time_10ms++;
-                }
-
-                while(rise_time_us < 0)
-                {
-                    rise_time_us += 10000;
-                    rise_time_10ms--;
-                }
-*/
-
-
-
-
     update_display(0, 0, rise_time_s, 0, rise_time_us, 0);
 }
-
-
-
-
-
-
-
-// Called upon each particle detection
-void EXTI1_IRQHandler(void)
-{
-  //  static int resetted = 0;
-    // Make sure that interrupt flag is set
-    if(EXTI_GetITStatus(EXTI_Line1) != RESET) 
-    {
-        if(GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_1) != 0)
-        {
-            rise_time_us = 100*TIM_GetCounter(TIM3);
-            rise_time_s = abs_time_s;
-
-compute_and_display_values();
-
-           // TIM_SetCounter(TIM3, 0);
-           // abs_time_s = 0;
-
-
-              // if(resetted)
-               // {
-                   
-                 //   resetted = 0;
-            //        TIM_SetCounter(TIM3, 0);
-             //   }
-            //    else{
-              // resetted = 1;}
-
-
-            /*
-                rise_time_us = abs_time_us + 100*TIM_GetCounter(TIM3) - fall_time_us;
-                rise_time_s = abs_time_s - fall_time_s;
-                
-                if(resetted)
-                {
-                    compute_and_display_values();
-                    resetted = 0;
-                }
-                else{
-
-                TIM_SetCounter(TIM3, 0);
-                abs_time_us = 0;
-                abs_time_s = 0;
-                resetted = 1;}
-*/
-
-        }
-        // Clear interrupt flag
-        EXTI_ClearITPendingBit(EXTI_Line1);
-    }
-}
-
 
 // Called upon each particle detection
 void EXTI0_IRQHandler(void)
 {
-    //static int prev_abs_time_s;
+    static int toggle = 0;
     // Make sure that interrupt flag is set
     if(EXTI_GetITStatus(EXTI_Line1) != RESET) 
     {
         if(GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_1) != 0)
         {
-           /*     fall_time_us = abs_time_us + 100*TIM_GetCounter(TIM3);
-                fall_time_s = abs_time_s;
-*/
-
-      //      fall_time_us = 100*TIM_GetCounter(TIM3);
-      //      fall_time_s = abs_time_s;
-            TIM_SetCounter(TIM3, 0);
-            abs_time_s = 0;
-
-                //if(prev_abs_time_s != abs_time_s) 
-                //{
-                    
-                  //  prev_abs_time_s = abs_time_s;
-                //}
-
+            if(abs_time_s > 0) // Time >> displaying delay
+            {
+                rise_time_us = 100*TIM_GetCounter(TIM3);
+                rise_time_s = abs_time_s;
+                compute_and_display_values();
+                TIM_SetCounter(TIM3, 0);
+                abs_time_s = 0;
+            }
+            else
+            {
+                toggle ^= 1;
+                if(toggle)
+                {
+                    rise_time_us = 100*TIM_GetCounter(TIM3);
+                    rise_time_s = abs_time_s;
+                    compute_and_display_values();
+                }
+                else
+                {
+                    TIM_SetCounter(TIM3, 0);
+                    abs_time_s = 0;
+                }
+            }
         }
         // Clear interrupt flag
         EXTI_ClearITPendingBit(EXTI_Line1);
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // Updates display reading once per second and measures battery charge
 
@@ -854,26 +686,20 @@ void TIM3_IRQHandler(void)
     }
 }
 
-
-
-
-
 void mode_sw_init(void)
 {
     GPIO_InitTypeDef GPIOB_Init;
 
-    GPIOB_Init.GPIO_Pin = GPIO_Pin_14 |GPIO_Pin_14;
+    GPIOB_Init.GPIO_Pin = GPIO_Pin_14 | GPIO_Pin_15;
     GPIOB_Init.GPIO_Speed = GPIO_Speed_50MHz;
     GPIOB_Init.GPIO_Mode = GPIO_Mode_Out_PP;
 
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
     GPIO_Init(GPIOB, &GPIOB_Init);
 
-    GPIO_WriteBit(GPIOB, GPIO_Pin_15, Bit_SET); 
+    GPIO_WriteBit(GPIOB, GPIO_Pin_15, Bit_RESET); 
     GPIO_WriteBit(GPIOB, GPIO_Pin_14, Bit_SET); 
 }
-
-
 
 int main(void)
 {
